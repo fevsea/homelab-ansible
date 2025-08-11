@@ -1,0 +1,38 @@
+---
+# Default variables for common role
+
+# Network Configuration
+dns_servers:
+  - "8.8.8.8"
+  - "8.8.4.4"
+
+# User Configuration
+additional_users: []
+
+# System Configuration
+timezone: "UTC"
+
+# Package Configuration
+common_packages:
+  - curl
+  - wget
+  - git
+  - htop
+  - vim
+  - unzip
+  - rsync
+  - python3
+  - python3-pip
+
+common_packages_x64:
+  - build-essential
+  - software-properties-common
+
+# Groups Configuration
+system_groups:
+  - software
+  - docker
+
+# Security Configuration
+ssh_key_type: "rsa"
+ssh_key_bits: 4096

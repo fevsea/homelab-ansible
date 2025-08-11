@@ -1,24 +1,27 @@
 ---
-- name: Create user
-  user:
+- name: Create regular user
+  ansible.builtin.user:
     name: "{{ user.username }}"
     shell: /bin/bash
     password: "*"
     state: present
-    uid: "{{ user.uid }}"
+    uid: "{{ user.uid | default(omit) }}"
     home: "/home/{{ user.username }}"
+    create_home: true
+  become: true
 
-- name: User groups
-  group:
-    name: "{{ item }}"
-  loop:
-    - software
-    - docker
-
-- name: Admin groups
-  user:
+- name: Add user to system groups
+  ansible.builtin.user:
     name: "{{ user.username }}"
-    groups:
-      - software
-      - docker
-    append: yes
+    groups: "{{ system_groups }}"
+    append: true
+  become: true
+
+- name: Add SSH keys for regular user
+  ansible.posix.authorized_key:
+    user: "{{ user.username }}"
+    key: "{{ item }}"
+    state: present
+  loop: "{{ user.ssh_keys | default([]) }}"
+  when: user.ssh_keys is defined
+  become: true

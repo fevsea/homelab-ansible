@@ -1,41 +1,35 @@
 ---
-# It expects the facts:
-# compose_name: docker_compose name
-# compose_definition:
+# Docker role main tasks - simplified and consolidated
 
-- name: docker
+- name: Validate docker configuration
+  ansible.builtin.assert:
+    that:
+      - docker_volumes_path is defined
+      - docker_config_path is defined
+    fail_msg: "Docker configuration variables are missing or incomplete"
+    quiet: true
+  tags:
+    - docker
+    - validation
+
+- name: Install Docker (if enabled)
   include_tasks: install.yml
-  when: containers is defined and containers | length > 0
+  when: docker_enabled | default(true)
   tags:
     - docker-install
 
-- name: Mount NFS backup share
-  ansible.builtin.include_role:
-    name: common
-    tasks_from: mount_util
+# Consolidated container deployment - single include per service
+- name: Deploy Docker services
+  include_tasks: deploy_service.yml
+  loop: "{{ containers | select('in', docker_services) | list }}"
+  loop_control:
+    loop_var: compose_name
   vars:
-    do_mount:
-      mount: "backups"
-      state: "mounted"
-
-- name: Docker compose loop
-
-  block:
-  - name: Handle composes
-    include_tasks: compose.yml
-    vars:
-      compose_data: "{{ docker_services[compose_name] }}"
-    loop: "{{ containers }}"
-    loop_control:
-      loop_var: compose_name
-    when: "compose_name in docker_services"
-
-  always:
-  - name: Mount NFS backup share
-    ansible.builtin.include_role:
-      name: common
-      tasks_from: mount_util
-    vars:
-      do_mount:
-        mount: "backups"
-        state: "unmounted"
+    compose_data: "{{ docker_services[compose_name] }}"
+  when:
+    - containers is defined
+    - containers | length > 0
+    - docker_services is defined
+    - docker_services | length > 0
+  tags:
+    - docker-deploy

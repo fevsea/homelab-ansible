@@ -1,0 +1,45 @@
+---
+- name: Install NFS utilities
+  ansible.builtin.package:
+    name: nfs-common
+    state: present
+  become: true
+
+- name: Ensure NFS mount directories exist
+  ansible.builtin.file:
+    path: "{{ item.mount_point }}"
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+  loop:
+    - "{{ nas.homelab }}"
+    - "{{ nas.backups }}"
+  when: item.mount_point is defined
+  become: true
+
+- name: Configure permanent NFS mounts
+  ansible.builtin.mount:
+    path: "{{ nas.homelab.mount_point }}"
+    src: "{{ nas.host }}:{{ nas.homelab.share }}"
+    fstype: nfs
+    opts: "{{ nas.homelab.options }}"
+    state: mounted
+    boot: true
+  when: 
+    - nas.homelab is defined
+    - nas.homelab.mount_point is defined
+    - nas.homelab.share is defined
+  become: true
+
+- name: Ensure backup mount point exists but don't mount permanently
+  ansible.builtin.file:
+    path: "{{ nas.backups.mount_point }}"
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+  when:
+    - nas.backups is defined
+    - nas.backups.mount_point is defined
+  become: true

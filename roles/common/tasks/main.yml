@@ -1,12 +1,43 @@
 ---
+- name: Validate required variables
+  ansible.builtin.assert:
+    that:
+      - ansible_user is defined
+      - username is defined
+      - ansible_user_pub_keys is defined
+      - admin_pub_keys is defined
+    fail_msg: "Missing required variables for common role"
+    quiet: true
 
-- name: Configure admin users
-  import_tasks: users.yml
-  tags: users
+- name: Configure system settings
+  ansible.builtin.import_tasks: system.yml
+  tags:
+    - common
+    - system
 
-- name: Packages
-  import_tasks: packages.yml
+- name: Install and configure packages
+  ansible.builtin.import_tasks: packages.yml
+  tags:
+    - common
+    - packages
+
+- name: Configure users
+  ansible.builtin.import_tasks: users.yml
+  tags:
+    - common
+    - users
+  when: users is defined
+
+- name: Configure network settings
+  ansible.builtin.import_tasks: network.yml
+  tags:
+    - common
+    - network
+  when: ip is defined and gateway is defined
 
 - name: Configure NFS mounts
-  import_tasks: nfs_mounts.yml
-  tags: nfs
+  ansible.builtin.import_tasks: nfs_mounts.yml
+  tags:
+    - common
+    - nfs
+  when: nas is defined

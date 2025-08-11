@@ -1,22 +1,6 @@
 ---
-- name: Configure ansible user
-  import_tasks: "admin.yml"
-  vars:
-    user:
-      username: "{{ ansible_user }}"
-      ssh_keys: "{{ ansible_user_pub_keys }}"
-      allow_password: "{{ false | bool }}"
-
-- name: Configure admin user
-  import_tasks: "admin.yml"
-  vars:
-    user:
-      username: "{{ username }}"
-      ssh_keys: "{{ admin_pub_keys }}"
-      allow_password: "{{ true | bool }}"
-
-- name: Normal user
-  include_tasks: "user.yml"
-  loop: "{{ additional_user | default([]) }}"
+- name: Configure users
+  ansible.builtin.include_tasks: user.yml
+  loop: "{{ users }}"
   loop_control:
-    loop_var: "user"
+    loop_var: user

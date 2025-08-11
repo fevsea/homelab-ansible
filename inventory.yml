@@ -1,0 +1,39 @@
+# Inventory file for homelab infrastructure
+---
+all:
+  children:
+    homelab:
+      children:
+        central:
+          hosts:
+            tooling:
+              ansible_host: 192.168.5.10
+              role: central_server
+              ip: 192.168.5.10
+              gateway: 192.168.5.1
+              interface: eth0
+        workers:
+          children:
+            amd64_workers:
+              hosts:
+                china4:
+                  ansible_host: 192.168.5.44
+                  architecture: amd64
+                  ip: 192.168.5.44
+                  gateway: 192.168.5.1
+                  interface: eth0
+            arm64_workers:
+              hosts:
+                # Add ARM64 workers here when available
+  vars:
+    # Connection settings
+    ansible_user: ansible
+    ansible_ssh_private_key_file: ~/.ssh/homelab_ansible
+    ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+    
+    # Network settings  
+    network_subnet: 192.168.5.0/24
+    network_gateway: 192.168.5.1
+    dns_servers:
+      - "8.8.8.8"
+      - "8.8.4.4"

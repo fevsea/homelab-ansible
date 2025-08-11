@@ -1,0 +1,39 @@
+---
+# Main backup tasks
+- name: Validate backup configuration
+  ansible.builtin.assert:
+    that:
+      - nas.backups is defined
+      - nas.backups.mount_point is defined
+      - nas.backups.share is defined
+    fail_msg: "NAS backup configuration is missing or incomplete"
+    quiet: true
+  tags:
+    - backup
+    - validation
+
+- name: Perform docker volume backup
+  include_tasks: docker_volumes.yml
+  when:
+    - docker_backup_enabled | default(true)
+    - containers is defined
+    - containers | length > 0
+  tags:
+    - backup
+    - docker
+
+- name: Perform system backup
+  include_tasks: system.yml
+  when: backup_enabled | default(true)
+  tags:
+    - backup
+    - system
+
+- name: Clean up old backups
+  include_tasks: cleanup.yml
+  when:
+    - backup_retention_days is defined
+    - backup_retention_days > 0
+  tags:
+    - backup
+    - cleanup

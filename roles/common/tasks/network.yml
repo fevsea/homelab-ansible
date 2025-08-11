@@ -1,0 +1,54 @@
+---
+- name: Validate network configuration variables
+  ansible.builtin.assert:
+    that:
+      - ip is defined
+      - gateway is defined
+      - ip | ansible.utils.ipaddr
+      - gateway | ansible.utils.ipaddr
+    fail_msg: "Invalid IP address or gateway configuration"
+    quiet: true
+
+- name: Set interface name
+  ansible.builtin.set_fact:
+    interface: "{{ interface | default(ansible_default_ipv4.interface) }}"
+
+- name: Configure Netplan (Ubuntu)
+  block:
+    - name: Generate netplan configuration file
+      ansible.builtin.template:
+        src: netplan_config.yml.j2
+        dest: /etc/netplan/01-homelab.yaml
+        mode: '0600'
+        backup: true
+      notify: apply netplan
+
+    - name: Remove cloud-init netplan configuration
+      ansible.builtin.file:
+        path: /etc/netplan/50-cloud-init.yaml
+        state: absent
+      notify: apply netplan
+
+    - name: Validate netplan configuration
+      ansible.builtin.command:
+        cmd: netplan try --timeout=10
+      register: netplan_result
+      failed_when: netplan_result.rc != 0
+      changed_when: false
+  when: ansible_distribution == 'Ubuntu'
+  become: true
+
+- name: Configure network interfaces (Debian)
+  block:
+    - name: Generate interfaces configuration file
+      ansible.builtin.template:
+        src: 01-main.j2
+        dest: /etc/network/interfaces.d/01-homelab
+        mode: '0644'
+        backup: true
+      notify: restart networking
+
+    - name: Restart networking if configuration changed
+      ansible.builtin.meta: flush_handlers
+  when: ansible_distribution == 'Debian'
+  become: true

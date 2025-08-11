@@ -1,0 +1,32 @@
+---
+# Role: backup
+# Description: Backup management for Docker volumes and system data
+
+galaxy_info:
+  role_name: backup
+  author: homelab-admin
+  description: Centralized backup management with NFS support and automated cleanup
+  license: MIT
+  min_ansible_version: "2.9"
+  
+  platforms:
+    - name: Ubuntu
+      versions:
+        - "20.04"
+        - "22.04"
+        - "24.04"
+    - name: Debian
+      versions:
+        - bullseye
+        - bookworm
+        - trixie
+
+  galaxy_tags:
+    - backup
+    - nfs
+    - docker
+    - system
+    - automation
+
+dependencies:
+  - role: common

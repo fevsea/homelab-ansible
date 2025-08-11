@@ -1,0 +1,89 @@
+---
+# System backup tasks
+
+- name: System backup
+  tags:
+    - backup
+    - system
+  block:
+    - name: Mount NFS backup share
+      include_role:
+        name: common
+        tasks_from: mount_util
+      vars:
+        do_mount:
+          mount: "backups"
+          state: "mounted"
+
+    - name: Create backup directory for this host
+      file:
+        path: "{{ nas.backups.mount_point }}/{{ inventory_hostname }}/system"
+        state: directory
+        mode: '0755'
+      become: true
+
+    - name: Verify source directories exist
+      stat:
+        path: "{{ item }}"
+      register: source_dirs
+      loop: "{{ backup_directories }}"
+      failed_when: false
+
+    - name: Backup existing system directories
+      synchronize:
+        src: "{{ item.item }}/"
+        dest: "{{ nas.backups.mount_point }}/{{ inventory_hostname }}/system{{ item.item }}/"
+        rsync_opts: "{{ backup_rsync_options }}"
+        delete: yes
+      loop: "{{ source_dirs.results }}"
+      when: item.stat.exists and item.stat.isdir
+      delegate_to: "{{ inventory_hostname }}"
+      become: true
+
+    - name: Create backup metadata
+      copy:
+        content: |
+          Backup Date: {{ ansible_date_time.iso8601 }}
+          Host: {{ inventory_hostname }}
+          Ansible User: {{ ansible_user }}
+          Backed up directories:
+          {% for result in source_dirs.results %}
+          {% if result.stat.exists and result.stat.isdir %}
+            - {{ result.item }} ({{ result.stat.size | human_readable }})
+          {% else %}
+            - {{ result.item }} (SKIPPED - not found or not a directory)
+          {% endif %}
+          {% endfor %}
+          Backup retention: {{ backup_retention_days }} days
+        dest: "{{ nas.backups.mount_point }}/{{ inventory_hostname }}/system/backup_metadata.txt"
+        mode: '0644'
+      become: true
+
+    - name: Verify backup completion
+      stat:
+        path: "{{ nas.backups.mount_point }}/{{ inventory_hostname }}/system/backup_metadata.txt"
+      register: backup_verify
+      failed_when: not backup_verify.stat.exists
+
+  rescue:
+    - name: Log backup failure
+      debug:
+        msg: "System backup failed for {{ inventory_hostname }} at {{ ansible_date_time.iso8601 }}"
+
+    - name: Fail the task after logging
+      fail:
+        msg: "System backup failed"
+
+  always:
+    - name: Unmount NFS backup share
+      include_role:
+        name: common
+        tasks_from: mount_util
+      vars:
+        do_mount:
+          mount: "backups"
+          state: "unmounted"
+
+    - name: Log system backup completion
+      debug:
+        msg: "System backup completed for {{ inventory_hostname }} at {{ ansible_date_time.iso8601 }}"

@@ -1,0 +1,30 @@
+---
+# Backup role defaults
+
+# System backup configuration
+backup_enabled: true
+backup_retention_days: 30
+backup_directories:
+  - "/etc"
+  - "/home"
+  - "/var/log"
+
+# Docker backup configuration
+docker_backup_enabled: true
+
+# Docker paths (should match docker role defaults)
+# These are now imported from docker role to ensure consistency
+docker_config_path: "{{ docker_config_path | default('/srv/docker') }}"
+docker_volumes_path: "{{ docker_volumes_path | default('/var/docker_volumes') }}"
+
+# Container shutdown settings
+container_stop_timeout: 30
+container_start_retries: 3
+
+# Rsync options for backup operations
+backup_rsync_options:
+  - "--archive"
+  - "--verbose"
+  - "--delete"
+  - "--stats"
+  - "--human-readable"

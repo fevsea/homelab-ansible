@@ -1,2 +1,6 @@
-passlib
-ansible
+# Ansible requirements
+ansible>=8.0.0,<9.0.0
+ansible-core>=2.15.0
+passlib>=1.7.4
+
+# Ansible collections (install with: ansible-galaxy collection install -r requirements.yml)

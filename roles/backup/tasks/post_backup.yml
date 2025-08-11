@@ -1,0 +1,24 @@
+---
+# Post-backup tasks for docker volumes
+- name: Restart docker containers
+  community.docker.docker_compose:
+    project_src: "{{ docker_config_path }}/{{ item }}"
+    state: present
+    pull: false
+  loop: "{{ containers }}"
+  retries: "{{ container_start_retries }}"
+  delay: 10
+  failed_when: false
+  when:
+    - containers is defined
+    - container_stop_result is defined
+  become: true
+
+- name: Unmount NFS backup share
+  include_role:
+    name: common
+    tasks_from: mount_util
+  vars:
+    do_mount:
+      mount: "backups"
+      state: "unmounted"

@@ -1,0 +1,11 @@
+---
+- name: restart networking
+  ansible.builtin.service:
+    name: networking
+    state: restarted
+  become: true
+
+- name: apply netplan
+  ansible.builtin.command:
+    cmd: netplan apply
+  become: true

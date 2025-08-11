@@ -1,0 +1,50 @@
+---
+- name: Restore volume contents from backup when empty
+  when: nas.backups is defined
+  block:
+    - name: Mount backups share (temporary)
+      include_role:
+        name: common
+        tasks_from: mount_util
+      vars:
+        do_mount:
+          mount: backups
+          state: mounted
+
+    - name: Check if volume directories are empty and restore if needed
+      block:
+        - name: Check volume directory contents
+          ansible.builtin.find:
+            paths: "{{ docker_volumes_path }}/{{ compose_name }}/{{ volume_item.key }}"
+            file_type: any
+            patterns: '*'
+            hidden: true
+          register: volume_contents
+          
+        - name: Restore volume from backup if empty and backup exists
+          ansible.builtin.synchronize:
+            src: "{{ nas.backups.mount_point }}/docker/{{ compose_name }}/{{ volume_item.key }}/"
+            dest: "{{ docker_volumes_path }}/{{ compose_name }}/{{ volume_item.key }}/"
+            delete: false
+            recursive: true
+          when:
+            - volume_contents.matched | int == 0
+            - backup_path_stat.stat.exists | default(false)
+          vars:
+            backup_path: "{{ nas.backups.mount_point }}/docker/{{ compose_name }}/{{ volume_item.key }}"
+            backup_path_stat: "{{ lookup('ansible.builtin.stat', backup_path, errors='ignore') }}"
+
+      loop: "{{ compose_data | selectattr('volumes', 'defined') | map(attribute='volumes') | map('dict2items') | flatten }}"
+      loop_control:
+        loop_var: volume_item
+        label: "{{ volume_item.key }}"
+
+  always:
+    - name: Unmount backups share (cleanup)
+      include_role:
+        name: common
+        tasks_from: mount_util
+      vars:
+        do_mount:
+          mount: backups
+          state: unmounted

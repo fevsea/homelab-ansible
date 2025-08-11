@@ -1,0 +1,30 @@
+---
+# Role: docker
+# Description: Docker and container management
+# Dependencies: common
+
+galaxy_info:
+  role_name: docker
+  author: homelab-admin
+  description: Docker installation and container orchestration with backup support
+  license: MIT
+  min_ansible_version: "2.9"
+  
+  platforms:
+    - name: Ubuntu
+      versions:
+        - "20.04"
+        - "22.04"
+        - "24.04"
+    - name: Debian
+      versions:
+        - bullseye
+        - bookworm
+
+  galaxy_tags:
+    - docker
+    - containers
+    - orchestration
+
+dependencies:
+  - role: common

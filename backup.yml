@@ -1,8 +1,24 @@
+# Backup playbook for homelab infrastructure
 ---
-- hosts: tooling
-  become: yes
+- name: Perform system and Docker backups
+  hosts: all
+  become: true
+  roles:
+    - role: backup
+  tags:
+    - backup
+
+- name: Docker-specific backup tasks
+  hosts: all
+  become: true
   tasks:
-    - name: include docker backup tasks
+    - name: Include Docker backup tasks
       include_role:
-        name: docker
-        tasks_from: do_backup.yml
+        name: backup
+        tasks_from: docker_volumes
+      when: 
+        - containers is defined
+        - containers | length > 0
+  tags:
+    - backup
+    - docker

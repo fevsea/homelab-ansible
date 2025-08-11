@@ -1,0 +1,32 @@
+---
+# Docker volume backup tasks
+- name: Docker volume backup
+  tags:
+    - backup
+    - docker
+  block:
+    - name: Run pre-backup tasks
+      include_tasks: pre_backup.yml
+
+    - name: Run backup tasks
+      include_tasks: backup.yml
+
+    - name: Verify backup
+      include_tasks: verify.yml
+
+  rescue:
+    - name: Log backup failure
+      debug:
+        msg: "Docker backup failed for {{ inventory_hostname }} at {{ ansible_date_time.iso8601 }}"
+
+    - name: Fail the task after logging
+      fail:
+        msg: "Docker volume backup failed"
+
+  always:
+    - name: Run post-backup tasks
+      include_tasks: post_backup.yml
+
+    - name: Log backup completion
+      debug:
+        msg: "Docker volume backup completed for {{ inventory_hostname }} at {{ ansible_date_time.iso8601 }}"

@@ -1,0 +1,16 @@
+---
+- name: Configure system groups
+  ansible.builtin.group:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ system_groups }}"
+  become: true
+
+- name: Configure /opt directory permissions
+  ansible.builtin.file:
+    path: /opt
+    state: directory
+    owner: root
+    group: software
+    mode: '02775'
+  become: true

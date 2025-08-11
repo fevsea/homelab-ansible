@@ -1,0 +1,38 @@
+---
+# Pre-backup tasks for docker volumes
+- name: Mount NFS backup share
+  include_role:
+    name: common
+    tasks_from: mount_util
+  vars:
+    do_mount:
+      mount: "backups"
+      state: "mounted"
+
+- name: Create backup directory structure
+  file:
+    path: "{{ nas.backups.mount_point }}/docker"
+    state: directory
+    mode: '0755'
+  become: true
+
+- name: Stop docker containers gracefully
+  community.docker.docker_compose:
+    project_src: "{{ docker_config_path }}/{{ item }}"
+    state: absent
+    timeout: "{{ container_stop_timeout }}"
+  loop: "{{ containers }}"
+  register: container_stop_result
+  failed_when: false
+  when: containers is defined
+  become: true
+
+- name: Wait for containers to stop completely
+  community.docker.docker_container_info:
+    name: "{{ item }}"
+  register: container_info
+  until: "not container_info.exists"
+  retries: 5
+  delay: 2
+  loop: "{{ containers }}"
+  when: container_stop_result is changed

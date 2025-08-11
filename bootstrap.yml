@@ -1,29 +1,63 @@
+# Bootstrap playbook for new nodes
 ---
 - name: Bootstrap a new node
-  hosts: "all"
+  hosts: all
+  become: true
   vars:
     ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
 
   pre_tasks:
-    - name: Get number of hosts in inventory
-      set_fact:
-        num_hosts: "{{ ansible_play_hosts | length }}"
+    - name: Verify single host execution
+      block:
+        - name: Get number of hosts in inventory
+          set_fact:
+            num_hosts: "{{ ansible_play_hosts | length }}"
 
-    - name: Stop execution if more than one host
-      fail:
-        msg: "There are multiple hosts in the inventory. This playbook is designed to run on a single host only."
-      when: num_hosts|int > 1
+        - name: Stop execution if more than one host
+          fail:
+            msg: "This playbook is designed to run on a single host only. Found {{ num_hosts }} hosts."
+          when: num_hosts|int > 1
+
+        - name: Validate required variables
+          fail:
+            msg: "Required variable '{{ item }}' is not defined"
+          when: vars[item] is not defined
+          loop:
+            - ip
+            - gateway
 
   tasks:
     - name: Create ansible admin user
-      ansible.builtin.import_role:
+      include_role:
         name: common
-        tasks_from: user
+        tasks_from: admin
       vars:
-        admin_user: "{{ ansible_user }}"
-        admin_keys: "{{ ansible_user_pub_keys }}"
+        user:
+          username: "{{ ansible_user }}"
+          ssh_keys: "{{ ansible_user_pub_keys }}"
+          allow_password: false
 
-    - name: IP changer
-      ansible.builtin.import_role:
+    - name: Configure network settings
+      include_role:
         name: common
         tasks_from: network
+      when: ip is defined and gateway is defined
+
+    - name: Install essential packages
+      include_role:
+        name: common
+        tasks_from: packages
+
+    - name: Display bootstrap completion
+      debug:
+        msg: |
+          Bootstrap completed successfully!
+          Host: {{ inventory_hostname }}
+          IP: {{ ip }}
+          Gateway: {{ gateway }}
+          Ansible User: {{ ansible_user }}
+          
+          Next steps:
+          1. Verify SSH access with key authentication
+          2. Run the main site.yml playbook
+          3. Configure host-specific variables if needed

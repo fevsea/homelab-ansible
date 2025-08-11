@@ -1,0 +1,79 @@
+# Maintenance playbook for homelab infrastructure
+---
+- name: System maintenance tasks
+  hosts: all
+  become: true
+  tasks:
+    - name: Update package cache
+      package:
+        update_cache: true
+      tags:
+        - maintenance
+        - packages
+
+    - name: Upgrade all packages
+      package:
+        name: "*"
+        state: latest
+      tags:
+        - maintenance
+        - packages
+        - upgrade
+
+    - name: Clean up package cache
+      package:
+        autoremove: true
+        autoclean: true
+      when: ansible_pkg_mgr == "apt"
+      tags:
+        - maintenance
+        - cleanup
+
+    - name: Clean up Docker system
+      command: docker system prune -f
+      when: containers is defined and containers | length > 0
+      tags:
+        - maintenance
+        - docker
+        - cleanup
+
+    - name: Check disk usage
+      command: df -h
+      register: disk_usage
+      changed_when: false
+      tags:
+        - maintenance
+        - monitoring
+
+    - name: Display disk usage
+      debug:
+        var: disk_usage.stdout_lines
+      tags:
+        - maintenance
+        - monitoring
+
+    - name: Check service status
+      systemd:
+        name: "{{ item }}"
+      register: service_status
+      loop:
+        - docker
+        - ssh
+      when: containers is defined and containers | length > 0
+      tags:
+        - maintenance
+        - monitoring
+
+    - name: Restart services if needed
+      systemd:
+        name: "{{ item }}"
+        state: restarted
+      loop:
+        - docker
+      when: 
+        - containers is defined 
+        - containers | length > 0
+        - restart_services | default(false)
+      tags:
+        - maintenance
+        - restart

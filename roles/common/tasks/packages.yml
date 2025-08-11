@@ -1,37 +1,46 @@
+---
 - name: Enable universe repository
   apt_repository:
     repo: "{{ item }}"
     state: present
+    update_cache: false
   loop:
     - "deb http://archive.ubuntu.com/ubuntu {{ ansible_distribution_release }} universe"
     - "deb http://archive.ubuntu.com/ubuntu {{ ansible_distribution_release }}-updates universe"
     - "deb http://security.ubuntu.com/ubuntu {{ ansible_distribution_release }}-security universe"
     - "deb http://archive.ubuntu.com/ubuntu {{ ansible_distribution_release }}-backports main restricted universe"
-  when: ansible_distribution == "Ubuntu" and ansible_architecture == "x86_64"
+  when: ansible_distribution == "Ubuntu"
+  become: true
 
-- name: Only run "update_cache=yes" if the last one is more than 3600 seconds ago
+- name: Update package cache
   ansible.builtin.apt:
-    update_cache: yes
+    update_cache: true
     cache_valid_time: 3600
+  become: true
 
-- name: Update packages
-  apt:
-    upgrade: yes
+- name: Upgrade packages
+  ansible.builtin.apt:
+    upgrade: safe
+    autoremove: true
+    autoclean: true
+  become: true
 
 - name: Install essential packages
-  package:
+  ansible.builtin.package:
     name: "{{ common_packages }}"
-    state: latest
+    state: present
+  become: true
 
 - name: Install essential packages only available on x86_64
-  package:
+  ansible.builtin.package:
     name: "{{ common_packages_x64 }}"
-    state: latest
+    state: present
   when: ansible_architecture == "x86_64"
+  become: true
 
-- name: Remove useless packages
+- name: Clean up packages
   ansible.builtin.apt:
-    autoremove: yes
-    autoclean: yes
-    purge: yes
-    clean: yes
+    autoremove: true
+    autoclean: true
+    purge: true
+  become: true

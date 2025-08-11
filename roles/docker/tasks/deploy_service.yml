@@ -1,0 +1,68 @@
+---
+# Deploy a single Docker Compose service - consolidated approach
+- name: Ensure compose root volume directory exists
+  become: true
+  ansible.builtin.file:
+    path: "{{ docker_volumes_path }}/{{ compose_name }}"
+    recurse: true
+    state: directory
+    owner: root
+    group: docker
+    mode: '0755'
+
+- name: Create individual volume directories
+  become: true
+  ansible.builtin.file:
+    path: "{{ docker_volumes_path }}/{{ compose_name }}/{{ item.key }}"
+    state: directory
+    owner: root
+    group: docker
+    mode: '0755'
+  loop: "{{ compose_data | selectattr('volumes', 'defined') | map(attribute='volumes') | map('dict2items') | flatten }}"
+  loop_control:
+    loop_var: item
+
+- name: Restore volumes from backup
+  include_tasks: backup.yml
+  loop: "{{ compose_data | selectattr('volumes', 'defined') | map(attribute='volumes') | map('dict2items') | flatten }}"
+  loop_control:
+    loop_var: volume_item
+
+- name: Ensure docker compose directory exists
+  become: true
+  ansible.builtin.file:
+    path: "{{ docker_config_path }}/{{ compose_name }}"
+    state: directory
+    owner: root
+    group: docker
+    mode: '0755'
+
+- name: Render docker-compose file
+  become: true
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ docker_config_path }}/{{ compose_name }}/docker-compose.yml"
+    owner: root
+    group: docker
+    mode: '0644'
+    backup: true
+  register: compose_file_result
+
+- name: Deploy stack with docker_compose module
+  become: true
+  community.docker.docker_compose:
+    project_src: "{{ docker_config_path }}/{{ compose_name }}"
+    files:
+      - docker-compose.yml
+    state: present
+    pull: true
+    restarted: false
+    remove_orphans: true
+  register: compose_up
+  retries: 3
+  delay: 5
+  until: compose_up is not failed
+
+- name: Display deployment status
+  ansible.builtin.debug:
+    msg: "{{ compose_name }} services deployment: {{ 'changed' if compose_up.changed else 'unchanged' }}"

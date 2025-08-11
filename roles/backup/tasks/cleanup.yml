@@ -1,0 +1,71 @@
+---
+# Backup cleanup tasks
+
+- name: Backup cleanup
+  tags:
+    - backup
+    - cleanup
+  block:
+    - name: Mount NFS backup share for cleanup
+      include_role:
+        name: common
+        tasks_from: mount_util
+      vars:
+        do_mount:
+          mount: "backups"
+          state: "mounted"
+
+    - name: Find old backup directories for this host
+      find:
+        paths: "{{ nas.backups.mount_point }}/{{ inventory_hostname }}"
+        file_type: directory
+        age: "{{ backup_retention_days }}d"
+        age_stamp: mtime
+      register: old_backups
+      when: backup_retention_days is defined and backup_retention_days > 0
+
+    - name: Remove old backup directories
+      file:
+        path: "{{ item.path }}"
+        state: absent
+      loop: "{{ old_backups.files | default([]) }}"
+      when: old_backups is defined and old_backups.files | length > 0
+      become: true
+
+    - name: Find old docker backup directories
+      find:
+        paths: "{{ nas.backups.mount_point }}/docker"
+        file_type: directory
+        age: "{{ backup_retention_days }}d"
+        age_stamp: mtime
+      register: old_docker_backups
+      when: 
+        - backup_retention_days is defined and backup_retention_days > 0
+        - docker_backup_enabled | default(true)
+
+    - name: Remove old docker backup directories
+      file:
+        path: "{{ item.path }}"
+        state: absent
+      loop: "{{ old_docker_backups.files | default([]) }}"
+      when: old_docker_backups is defined and old_docker_backups.files | length > 0
+      become: true
+
+    - name: Log cleanup completion
+      debug:
+        msg: "Backup cleanup completed for {{ inventory_hostname }}: removed {{ (old_backups.files | default([])) | length + (old_docker_backups.files | default([])) | length }} old backup directories"
+
+  rescue:
+    - name: Log cleanup failure
+      debug:
+        msg: "Backup cleanup failed for {{ inventory_hostname }}"
+
+  always:
+    - name: Unmount NFS backup share after cleanup
+      include_role:
+        name: common
+        tasks_from: mount_util
+      vars:
+        do_mount:
+          mount: "backups"
+          state: "unmounted"

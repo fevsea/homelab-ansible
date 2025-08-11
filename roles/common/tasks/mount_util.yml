@@ -1,10 +1,22 @@
-# The backup NFS share is not mounted by default
-# It will be mounted when needed and unmounted after use
-# VARS do_mount
-# - mount: Name of the temporal_mount
-# - state: mounted | unmounted
+---
+# Utility for mounting/unmounting temporary NFS shares
+# Variables required:
+#   do_mount.mount: Name of the mount configuration in nas dict
+#   do_mount.state: mounted | unmounted
 
-- name: Mount temporal NFS
+- name: Validate mount utility parameters
+  ansible.builtin.assert:
+    that:
+      - do_mount is defined
+      - do_mount.mount is defined
+      - do_mount.state is defined
+      - do_mount.state in ['mounted', 'unmounted']
+      - nas is defined
+      - nas[do_mount.mount] is defined
+    fail_msg: "Invalid parameters for mount utility"
+    quiet: true
+
+- name: "{{ do_mount.state | title }} temporary NFS share: {{ do_mount.mount }}"
   ansible.builtin.mount:
     path: "{{ nas[do_mount.mount].mount_point }}"
     src: "{{ nas.host }}:{{ nas[do_mount.mount].share }}"
@@ -12,3 +24,4 @@
     boot: false
     opts: "{{ nas[do_mount.mount].options }}"
     state: "{{ do_mount.state }}"
+  become: true

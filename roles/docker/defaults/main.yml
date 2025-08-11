@@ -1,18 +1,30 @@
+# Default variables for docker role
+---
+# Container deployment configuration
 containers: []
 docker_services: {}
-tz: "Europe/Madrid"
 
+# Master enable switch for docker role logic
+docker_enabled: true
+
+# System configuration - inherit from common role if available
+timezone: "{{ timezone | default('UTC') }}"
+
+# Path configuration
 docker_volumes_path: "/var/docker_volumes"
 docker_config_path: "/srv/docker"
 python_system_venvs_path: "/srv/python_venvs"
 
-docker_services_mongo:
-  - name: "mongodb"
-    image: "mongo"
-    tag: "latest"
-    ports:
-      - "80:80"
-    volumes:
-      - "/data": "/data"
-    env:
-      ENV_VAR1: "value1"
+# Example docker services configuration (for reference)
+# docker_services:
+#   mongodb:
+#     - name: "mongodb"
+#       image: "mongo"
+#       tag: "latest"
+#       ports:
+#         - "27017:27017"
+#       volumes:
+#         mongodb_data: "/data/db"
+#       env:
+#         MONGO_INITDB_ROOT_USERNAME: "admin"
+#         MONGO_INITDB_ROOT_PASSWORD: "password"

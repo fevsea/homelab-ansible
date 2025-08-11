@@ -1,0 +1,101 @@
+---
+# Backup verification tasks
+
+- name: Backup verification
+  tags:
+    - backup
+    - verify
+  block:
+    - name: Mount NFS backup share for verification
+      include_role:
+        name: common
+        tasks_from: mount_util
+      vars:
+        do_mount:
+          mount: "backups"
+          state: "mounted"
+
+    - name: Verify system backup integrity
+      stat:
+        path: "{{ nas.backups.mount_point }}/{{ inventory_hostname }}/system/backup_metadata.txt"
+      register: system_backup_metadata
+      when: backup_enabled | default(true)
+
+    - name: Verify docker backup integrity
+      stat:
+        path: "{{ nas.backups.mount_point }}/docker"
+      register: docker_backup_dir
+      when: 
+        - docker_backup_enabled | default(true)
+        - containers is defined
+        - containers | length > 0
+
+    - name: Check docker backup completeness
+      find:
+        paths: "{{ nas.backups.mount_point }}/docker"
+        file_type: directory
+      register: docker_backup_contents
+      when: 
+        - docker_backup_dir is defined
+        - docker_backup_dir.stat.exists
+
+    - name: Validate backup sizes
+      shell: |
+        if [ -d "{{ nas.backups.mount_point }}/{{ inventory_hostname }}/system" ]; then
+          du -sh "{{ nas.backups.mount_point }}/{{ inventory_hostname }}/system" | cut -f1
+        else
+          echo "0"
+        fi
+      register: system_backup_size
+      when: system_backup_metadata is defined and system_backup_metadata.stat.exists
+      changed_when: false
+
+    - name: Create verification report
+      copy:
+        content: |
+          Backup Verification Report
+          =========================
+          Date: {{ ansible_date_time.iso8601 }}
+          Host: {{ inventory_hostname }}
+          
+          System Backup:
+          {% if system_backup_metadata is defined and system_backup_metadata.stat.exists %}
+          ✓ Status: FOUND
+          ✓ Size: {{ system_backup_size.stdout | default('Unknown') }}
+          ✓ Last Modified: {{ system_backup_metadata.stat.mtime | default('Unknown') }}
+          {% else %}
+          ✗ Status: NOT FOUND
+          {% endif %}
+          
+          Docker Backup:
+          {% if docker_backup_dir is defined and docker_backup_dir.stat.exists %}
+          ✓ Status: FOUND
+          ✓ Containers backed up: {{ docker_backup_contents.matched | default(0) }}
+          {% else %}
+          ✗ Status: NOT FOUND
+          {% endif %}
+        dest: "{{ nas.backups.mount_point }}/{{ inventory_hostname }}/verification_{{ ansible_date_time.epoch }}.txt"
+        mode: '0644'
+      become: true
+
+    - name: Log verification results
+      debug:
+        msg: |
+          Backup verification completed for {{ inventory_hostname }}:
+          System backup: {{ 'OK' if (system_backup_metadata is defined and system_backup_metadata.stat.exists) else 'MISSING' }}
+          Docker backup: {{ 'OK' if (docker_backup_dir is defined and docker_backup_dir.stat.exists) else 'MISSING' }}
+
+  rescue:
+    - name: Log verification failure
+      debug:
+        msg: "Backup verification failed for {{ inventory_hostname }}"
+
+  always:
+    - name: Unmount NFS backup share after verification
+      include_role:
+        name: common
+        tasks_from: mount_util
+      vars:
+        do_mount:
+          mount: "backups"
+          state: "unmounted"

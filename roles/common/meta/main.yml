@@ -1,0 +1,31 @@
+---
+# Role: common
+# Description: Base system configuration for all hosts
+# Dependencies: none
+
+galaxy_info:
+  role_name: common
+  author: homelab-admin
+  description: Base system configuration including users, packages, network, and NFS mounts
+  license: MIT
+  min_ansible_version: "2.9"
+  
+  platforms:
+    - name: Ubuntu
+      versions:
+        - "20.04"
+        - "22.04"
+        - "24.04"
+    - name: Debian
+      versions:
+        - bullseye
+        - bookworm
+
+  galaxy_tags:
+    - system
+    - base
+    - users
+    - network
+    - nfs
+
+dependencies: []

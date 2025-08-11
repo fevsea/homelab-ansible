@@ -1,12 +1,20 @@
-# MASTER PLAYBOOK
+# Main site playbook for homelab infrastructure
 ---
-- hosts: all
-  become: yes
+- name: Configure base system
+  hosts: all
+  become: true
   roles:
     - role: common
+  tags:
+    - base
+    - common
 
-# If the host has containers assigned, it must then have docker installed
-- hosts: all
+- name: Configure Docker hosts
+  hosts: all
+  become: true
   roles:
     - role: docker
-  tags: docker
+  when: containers is defined and containers | length > 0
+  tags:
+    - docker
+    - containers

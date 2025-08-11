@@ -1,23 +1,18 @@
-native_services: []
+# Host variables for tooling server
+---
+# Network Configuration
+ip: 192.168.5.10
+gateway: 192.168.5.1
+interface: eth0
 
-
-# MongoDB
-mongodb_tag: "7.0-ubuntu2204"
-mongodb_user: "mongo"
-mongodb_password: "{{ db_password | default('') }}"
-mongodb_volume_local_path: "{{ docker_volumes_path }}/mongodb"
-
-persistent_network_mounts:
-  - homelab
-temporal_network_mounts:
-  - backup
-
+# Container Configuration
 containers:
   - mongodb
   - nexus
   - mlflow
   - uptimekuma
 
+# Docker Services Configuration
 docker_services:
   mongodb:
     - name: "mongodb"
@@ -30,6 +25,13 @@ docker_services:
       env:
         MONGO_INITDB_ROOT_USERNAME: "{{ mongodb_user }}"
         MONGO_INITDB_ROOT_PASSWORD: "{{ mongodb_password }}"
+        TZ: "{{ timezone }}"
+      healthcheck:
+        test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+        interval: "30s"
+        timeout: "10s"
+        retries: 3
+
   uptimekuma:
     - name: "uptimekuma"
       image: "louislam/uptime-kuma"
@@ -38,6 +40,9 @@ docker_services:
         - "4030:3001"
       volumes:
         uptimekuma_data: "/app/data"
+      env:
+        TZ: "{{ timezone }}"
+
   nexus:
     - name: "nexus"
       image: "sonatype/nexus3"
@@ -47,13 +52,33 @@ docker_services:
         - "8085:8085"
       volumes:
         nexus_data: "/nexus-data"
+      env:
+        TZ: "{{ timezone }}"
+        NEXUS_SECURITY_RANDOMPASSWORD: "false"
 
   mlflow:
     - name: "mlflow"
       image: "bitnami/mlflow"
       tag: "2.20.1"
       ports:
-        - "8082:8081"
-        - "8084:8085"
+        - "8082:5000"
       volumes:
-        nexus_data: "/nexus-data"
+        mlflow_data: "/bitnami/mlflow"
+      env:
+        TZ: "{{ timezone }}"
+        MLFLOW_DATABASE_URI: "mongodb://{{ mongodb_user }}:{{ mongodb_password }}@mongodb:27017/mlflow"
+      depends_on:
+        - mongodb
+
+# Application-specific variables
+mongodb_user: "mongo"
+mongodb_password: "{{ db_password }}"
+
+# Backup configuration
+backup_enabled: true
+docker_backup_enabled: true
+
+# Additional users for this host
+additional_user:
+  - username: hypercube
+    uid: 1027
