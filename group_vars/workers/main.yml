@@ -1,0 +1,2 @@
+---
+worker_runtime_container_engine: docker  # Placeholder option: docker|containerd|podman

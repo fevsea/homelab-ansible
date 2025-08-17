@@ -1,0 +1,3 @@
+---
+proxy_edge_enable_vpn: true
+proxy_edge_enable_reverse_proxy: false

@@ -1,0 +1,13 @@
+---
+- name: Bootstrap unmanaged node (minimal requirements)
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Ensure Python present (Debian/Ubuntu)
+      raw: |
+        test -e /usr/bin/python3 || (apt-get update -y && apt-get install -y python3)
+      changed_when: false
+      when: ansible_os_family is not defined or ansible_os_family == 'Debian'
+
+    - name: Gather facts post bootstrap
+      setup:

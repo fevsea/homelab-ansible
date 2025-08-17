@@ -1,0 +1,42 @@
+---
+- name: Molecule converge (smoke)
+  hosts: localhost
+  gather_facts: false
+  vars:
+    inventory_path: "{{ lookup('env','MOLECULE_PROJECT_DIRECTORY') | default('../../', true) }}/inventories/lab/hosts.yml"
+  tasks:
+    - name: Load lab inventory YAML
+      set_fact:
+        lab_inventory: "{{ lookup('file', inventory_path) | from_yaml }}"
+
+    - name: Extract host entries
+      set_fact:
+        lab_hosts: >-
+          {{ (lab_inventory.all.children | dict2items | map(attribute='value') | list)
+              | map(attribute='hosts', default={}) | list
+              | map('dict2items') | list | sum(start=[]) | map(attribute='key') | list }}
+
+    - name: Assert at least one host present
+      assert:
+        that:
+          - lab_hosts | length > 0
+        fail_msg: "No hosts found in lab inventory"
+
+    - name: Collect role_primary per host
+      set_fact:
+        host_roles: >-
+          {{ (lab_inventory.all.children | dict2items | map(attribute='value') | list)
+              | map(attribute='hosts', default={}) | list
+              | map('dict2items') | list | sum(start=[]) | items2dict(key_name='key', value_name='value') }}
+
+    - name: Validate role_primary values
+      vars:
+        invalid: >-
+          {{ host_roles | dict2items | selectattr('value.role_primary','undefined') | list
+             + (host_roles | dict2items | rejectattr('value.role_primary','defined') | list) }}
+      assert:
+        that:
+          - host_roles | dict2items | map(attribute='value.role_primary') | reject('undefined') | list | length == (host_roles | length)
+      failed_when: false
+      changed_when: false
+

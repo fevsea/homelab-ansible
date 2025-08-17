@@ -1,0 +1,5 @@
+---
+# Global defaults (safe, generic)
+base_packages: []  # Extend in group/host vars
+secrets_profile: standard
+

@@ -1,0 +1,15 @@
+---
+- name: Verify post-convergence state
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Assert role_primary defined
+      assert:
+        that:
+          - role_primary is defined
+          - role_primary in ['nas', 'tooling', 'proxy', 'worker']
+        fail_msg: "role_primary missing or invalid"
+
+    - name: Show capabilities (informational)
+      debug:
+        var: capabilities | default([])

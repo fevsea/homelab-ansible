@@ -1,0 +1,13 @@
+---
+- name: Verify base role
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check MOTD deployed
+      stat:
+        path: /etc/motd
+      register: motd
+    - name: Assert MOTD present
+      assert:
+        that:
+          - motd.stat.exists

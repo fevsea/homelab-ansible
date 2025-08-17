@@ -1,0 +1,4 @@
+Homelab Managed Node: {{ inventory_hostname }}
+Primary Role: {{ role_primary | default('unknown') }}
+Capabilities: {{ (capabilities | default([])) | join(', ') }}
+Architecture: {{ ansible_facts['architecture'] | default('?') }}

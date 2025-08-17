@@ -1,0 +1,5 @@
+---
+# Safe, overridable defaults for base role
+base_packages: []
+base_manage_motd: false
+base_users: []  # List of user dicts { name: '', groups: [], state: present }

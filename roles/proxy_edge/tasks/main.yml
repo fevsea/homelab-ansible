@@ -1,0 +1,10 @@
+---
+- name: Proxy | VPN placeholder
+  debug:
+    msg: "VPN setup tasks would run."
+  when: proxy_edge_enable_vpn | bool
+
+- name: Proxy | Reverse proxy placeholder
+  debug:
+    msg: "Reverse proxy setup tasks would run."
+  when: proxy_edge_enable_reverse_proxy | bool

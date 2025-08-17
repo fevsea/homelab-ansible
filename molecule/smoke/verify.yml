@@ -1,0 +1,47 @@
+---
+- name: Molecule verify (smoke)
+  hosts: localhost
+  gather_facts: false
+  vars:
+    inventory_path: "../../inventories/lab/hosts.yml"
+  tasks:
+    - name: Load lab inventory YAML
+      set_fact:
+        lab_inventory: "{{ lookup('file', inventory_path) | from_yaml }}"
+
+    - name: Extract flat host map
+      set_fact:
+        lab_hosts_map: >-
+          {{ dict(
+            (lab_inventory.all.children | dict2items | map(attribute='value') | list)
+              | map(attribute='hosts', default={}) | list
+              | map('dict2items') | list | sum(start=[]) | map(attribute='key') | list
+              | zip(
+                (lab_inventory.all.children | dict2items | map(attribute='value') | list)
+                  | map(attribute='hosts', default={}) | list
+                  | map('dict2items') | list | sum(start=[]) | map(attribute='value') | list
+              )
+          ) }}
+
+    - name: Assert inventory not empty
+      assert:
+        that:
+          - lab_hosts_map | length > 0
+        fail_msg: "Inventory has no hosts"
+
+    - name: Validate role_primary presence & value
+      vars:
+        valid_roles: [ 'nas', 'tooling', 'proxy', 'worker' ]
+      loop: "{{ lab_hosts_map | dict2items }}"
+      loop_control:
+        label: "{{ item.key }}"
+      assert:
+        that:
+          - item.value.role_primary is defined
+          - item.value.role_primary in valid_roles
+        fail_msg: "Host {{ item.key }} invalid role_primary={{ item.value.role_primary | default('undefined') }}"
+
+    - name: Summary
+      debug:
+        msg: >-
+          Validated {{ lab_hosts_map | length }} hosts; roles={{ lab_hosts_map | dict2items | map(attribute='value.role_primary') | list | unique | join(',') }}

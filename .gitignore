@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.venv/
+.molecule/
+*.retry
+.ansible-lint
+*.log
+*.egg-info/
+collections/
+dist/

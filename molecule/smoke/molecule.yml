@@ -1,0 +1,23 @@
+---
+dependency:
+  name: galaxy
+driver:
+  name: default
+platforms:
+  - name: localhost
+provisioner:
+  name: ansible
+  inventory: {}
+  playbooks:
+    converge: converge.yml
+  env:
+    ANSIBLE_CONFIG: ../../ansible.cfg
+verifier:
+  name: ansible
+scenario:
+  test_sequence:
+    - dependency
+    - syntax
+    - converge
+    - verify
+    - destroy

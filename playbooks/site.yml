@@ -1,0 +1,9 @@
+---
+- name: Converge homelab baseline
+  hosts: all
+  gather_facts: true
+  roles:
+    - role: base
+    - role: proxy_edge
+      when: role_primary == 'proxy'
+

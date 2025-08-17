@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ansible-flow"
+version = "0.1.0"
+description = "Homelab Ansible automation for heterogeneous nodes"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"  # SPDX expression (was table; updated per setuptools deprecation warning)
+authors = [{ name = "Alejandro Agustin" }]
+dependencies = []  # Runtime deps (none yet; roles use system packages)
+
+[project.optional-dependencies]
+dev = [
+    "ansible-core",
+    "ansible-lint",
+    "molecule",
+    "molecule-plugins",
+    "yamllint",
+    "docker",
+    "pytest"
+]
+
+[tool.yamllint]
+extends = "default"
+
+
+[tool.pytest.ini_options]
+addopts = "-q"
+pythonpath = ["."]
+
+# Prevent setuptools from auto-discovering non-Python Ansible directories (roles/, playbooks/, etc.)
+# This project currently ships no Python packages; we publish only metadata for dev tooling.
+[tool.setuptools]
+packages = []

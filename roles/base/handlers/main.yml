@@ -1,0 +1,4 @@
+---
+- name: base_restart_dummy
+  debug:
+    msg: "Dummy handler triggered (replace with real service restarts)."
