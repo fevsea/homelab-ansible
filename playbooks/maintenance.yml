@@ -2,27 +2,322 @@
 - name: Periodic maintenance tasks
   hosts: all
   gather_facts: true
+  become: true
+  vars:
+    # Configurable maintenance options
+    maintenance_update_packages: true
+    maintenance_apply_security_updates: false
+    maintenance_docker_cleanup: true
+    maintenance_log_cleanup: true
+    maintenance_check_disk_space: true
+    maintenance_restart_services: false
+
+    # Disk space thresholds (percentage)
+    disk_usage_warning_threshold: 80
+    disk_usage_critical_threshold: 90
+
+    # Log retention (days)
+    log_retention_days: 30
   tasks:
-    - name: Maintenance | Ensure package cache up to date (Debian/Ubuntu)
-      apt:
-        update_cache: yes
-        cache_valid_time: 3600
-      when: ansible_os_family == 'Debian'
+    # Package Management Tasks
+    - name: Package Management
+      block:
+        - name: Maintenance | Update package cache (Debian/Ubuntu)
+          ansible.builtin.apt:
+            update_cache: true
+            cache_valid_time: 3600
+          when: ansible_os_family == 'Debian'
+          tags: ['packages', 'maintenance']
 
-    - name: Maintenance | Apply upgrades (optional, disabled by default)
-      apt:
-        upgrade: safe
-      when: ansible_os_family == 'Debian' and (apply_security_upgrades | default(false))
+        - name: Maintenance | Update package cache (RedHat/CentOS)
+          ansible.builtin.yum:
+            update_cache: true
+          when: ansible_os_family == 'RedHat'
+          tags: ['packages', 'maintenance']
 
-    - name: Maintenance | Clean package cache (optional)
-      apt:
-        autoclean: yes
-      when: ansible_os_family == 'Debian' and (apt_autoclean | default(false))
+        - name: Maintenance | Apply security updates (Debian/Ubuntu)
+          ansible.builtin.apt:
+            upgrade: safe
+            autoremove: true
+          when:
+            - ansible_os_family == 'Debian'
+            - >
+              maintenance_apply_security_updates or
+              apply_security_upgrades | default(false)
+          tags: ['packages', 'security', 'maintenance']
 
-    - name: Maintenance | Print disk usage summary
-      command: df -h
-      register: disk_usage
-      changed_when: false
+        - name: Maintenance | Apply security updates (RedHat/CentOS)
+          ansible.builtin.yum:
+            name: '*'
+            state: latest
+            security: true
+          when:
+            - ansible_os_family == 'RedHat'
+            - >
+              maintenance_apply_security_updates or
+              apply_security_upgrades | default(false)
+          tags: ['packages', 'security', 'maintenance']
 
-    - debug:
-        var: disk_usage.stdout_lines
+        - name: Maintenance | Clean package cache (Debian/Ubuntu)
+          ansible.builtin.apt:
+            autoclean: true
+            autoremove: true
+          when:
+            - ansible_os_family == 'Debian'
+            - maintenance_update_packages
+          tags: ['packages', 'cleanup', 'maintenance']
+
+        - name: Maintenance | Clean package cache (RedHat/CentOS)
+          ansible.builtin.yum:
+            autoremove: true
+          when:
+            - ansible_os_family == 'RedHat'
+            - maintenance_update_packages
+          tags: ['packages', 'cleanup', 'maintenance']
+
+      when: maintenance_update_packages
+      rescue:
+        - name: Maintenance | Package management failed
+          ansible.builtin.debug:
+            msg: >
+              Package management failed on {{ inventory_hostname }}:
+              {{ ansible_failed_result.msg }}
+
+    # Docker Cleanup Tasks
+    - name: Docker Maintenance
+      block:
+        - name: Maintenance | Check if Docker is installed
+          ansible.builtin.command: which docker
+          register: docker_check
+          failed_when: false
+          changed_when: false
+          tags: ['cleanup', 'docker', 'maintenance']
+
+        - name: Maintenance | Remove unused Docker images
+          ansible.builtin.command: docker image prune -af
+          when: docker_check.rc == 0
+          register: docker_image_prune
+          changed_when: "'Total reclaimed space' in docker_image_prune.stdout"
+          tags: ['cleanup', 'docker', 'maintenance']
+
+        - name: Maintenance | Remove unused Docker containers
+          ansible.builtin.command: docker container prune -f
+          when: docker_check.rc == 0
+          register: docker_container_prune
+          changed_when: >
+            'Total reclaimed space' in docker_container_prune.stdout
+          tags: ['cleanup', 'docker', 'maintenance']
+
+        - name: Maintenance | Remove unused Docker volumes
+          ansible.builtin.command: docker volume prune -f
+          when: docker_check.rc == 0
+          register: docker_volume_prune
+          changed_when: >
+            'Total reclaimed space' in docker_volume_prune.stdout
+          tags: ['cleanup', 'docker', 'maintenance']
+
+        - name: Maintenance | Remove unused Docker networks
+          ansible.builtin.command: docker network prune -f
+          when: docker_check.rc == 0
+          register: docker_network_prune
+          changed_when: "'Deleted Networks' in docker_network_prune.stdout"
+          tags: ['cleanup', 'docker', 'maintenance']
+
+        - name: Maintenance | Show Docker cleanup results
+          ansible.builtin.debug:
+            msg:
+              - >
+                Images: {{ docker_image_prune.stdout_lines[-1]
+                if docker_image_prune.changed else 'No cleanup needed' }}
+              - >
+                Containers: {{ docker_container_prune.stdout_lines[-1]
+                if docker_container_prune.changed else 'No cleanup needed' }}
+              - >
+                Volumes: {{ docker_volume_prune.stdout_lines[-1]
+                if docker_volume_prune.changed else 'No cleanup needed' }}
+              - >
+                Networks: {{ docker_network_prune.stdout_lines[-1]
+                if docker_network_prune.changed else 'No cleanup needed' }}
+          when: docker_check.rc == 0
+          tags: ['cleanup', 'docker', 'maintenance']
+
+      when: maintenance_docker_cleanup
+      rescue:
+        - name: Maintenance | Docker cleanup failed
+          ansible.builtin.debug:
+            msg: >
+              Docker cleanup failed on {{ inventory_hostname }}:
+              {{ ansible_failed_result.msg }}
+
+    # Log Cleanup Tasks
+    - name: Log Maintenance
+      block:
+        - name: Maintenance | Clean systemd journal logs
+          ansible.builtin.command: >
+            journalctl --vacuum-time={{ log_retention_days }}d
+          register: journal_cleanup
+          changed_when: "'Vacuuming done' in journal_cleanup.stdout"
+          tags: ['cleanup', 'logs', 'maintenance']
+
+        - name: Maintenance | Clean old log files in /var/log
+          ansible.builtin.find:
+            paths: /var/log
+            age: "{{ log_retention_days }}d"
+            patterns: "*.log.*.gz,*.log.*.bz2"
+            recurse: true
+          register: old_logs
+          tags: ['cleanup', 'logs', 'maintenance']
+
+        - name: Maintenance | Remove old compressed log files
+          ansible.builtin.file:
+            path: "{{ item.path }}"
+            state: absent
+          loop: "{{ old_logs.files }}"
+          when: old_logs.files | length > 0
+          tags: ['cleanup', 'logs', 'maintenance']
+
+        - name: Maintenance | Show log cleanup results
+          ansible.builtin.debug:
+            msg:
+              - >
+                Journal cleanup: {{ journal_cleanup.stdout_lines[-1]
+                if journal_cleanup.changed else 'No cleanup needed' }}
+              - "Removed {{ old_logs.files | length }} old log files"
+          tags: ['cleanup', 'logs', 'maintenance']
+
+      when: maintenance_log_cleanup
+      rescue:
+        - name: Maintenance | Log cleanup failed
+          ansible.builtin.debug:
+            msg: >
+              Log cleanup failed on {{ inventory_hostname }}:
+              {{ ansible_failed_result.msg }}
+
+    # System Health Checks
+    - name: System Health Monitoring
+      block:
+        - name: Maintenance | Check disk usage
+          ansible.builtin.command: df -h
+          register: disk_usage
+          changed_when: false
+          tags: ['health', 'monitoring', 'maintenance']
+
+        - name: Maintenance | Parse disk usage for warnings
+          ansible.builtin.command: >
+            df --output=pcent,target | grep -v Filesystem |
+            awk '{gsub(/%/, "", $1);
+            if ($1 > {{ disk_usage_warning_threshold }}) print $0}'
+          register: disk_warnings
+          changed_when: false
+          failed_when: false
+          tags: ['health', 'monitoring', 'maintenance']
+
+        - name: Maintenance | Check memory usage
+          ansible.builtin.command: free -h
+          register: memory_usage
+          changed_when: false
+          tags: ['health', 'monitoring', 'maintenance']
+
+        - name: Maintenance | Check running services
+          ansible.builtin.command: >
+            systemctl list-units --type=service --state=failed --no-pager
+          register: failed_services
+          changed_when: false
+          failed_when: false
+          tags: ['health', 'monitoring', 'maintenance']
+
+        - name: Maintenance | Display system health summary
+          ansible.builtin.debug:
+            msg:
+              - "=== System Health Summary for {{ inventory_hostname }} ==="
+              - "Disk Usage:"
+              - "{{ disk_usage.stdout_lines | join('\n') }}"
+              - "Memory Usage:"
+              - "{{ memory_usage.stdout_lines | join('\n') }}"
+              - >
+                {% if disk_warnings.stdout_lines | length > 0 %}
+                WARNINGS - High disk usage detected:
+                {% endif %}
+              - >
+                {{ disk_warnings.stdout_lines | join('\n')
+                if disk_warnings.stdout_lines | length > 0
+                else 'No disk usage warnings' }}
+              - >
+                {% if failed_services.stdout_lines | length > 1 %}
+                WARNINGS - Failed services:
+                {% endif %}
+              - >
+                {{ failed_services.stdout_lines[1:] | join('\n')
+                if failed_services.stdout_lines | length > 1
+                else 'No failed services' }}
+          tags: ['health', 'monitoring', 'maintenance']
+
+        - name: Maintenance | Warn about high disk usage
+          ansible.builtin.fail:
+            msg: >
+              CRITICAL: Disk usage above
+              {{ disk_usage_critical_threshold }}% detected on
+              {{ inventory_hostname }}
+          when:
+            - disk_warnings.stdout_lines | length > 0
+            - >
+              disk_warnings.stdout | regex_search('([0-9]+)') | int >
+              disk_usage_critical_threshold
+          ignore_errors: true
+          tags: ['health', 'monitoring', 'maintenance']
+
+      when: maintenance_check_disk_space
+
+    # Service Restart Tasks
+    - name: Service Management
+      block:
+        - name: Maintenance | Restart Docker services (if requested)
+          ansible.builtin.systemd:
+            name: docker
+            state: restarted
+          when:
+            - maintenance_restart_services or restart_services | default(false)
+            - docker_check.rc == 0
+          tags: ['restart', 'services', 'maintenance']
+
+        - name: Maintenance | Reload systemd daemon
+          ansible.builtin.systemd:
+            daemon_reload: true
+          when: >
+            maintenance_restart_services or restart_services | default(false)
+          tags: ['restart', 'services', 'maintenance']
+
+      when: >
+        maintenance_restart_services or restart_services | default(false)
+      rescue:
+        - name: Maintenance | Service restart failed
+          ansible.builtin.debug:
+            msg: >
+              Service restart failed on {{ inventory_hostname }}:
+              {{ ansible_failed_result.msg }}
+
+    # Final Summary
+    - name: Maintenance | Show maintenance completion summary
+      ansible.builtin.debug:
+        msg:
+          - "=== Maintenance Complete for {{ inventory_hostname }} ==="
+          - >
+            Package updates: {{ 'Enabled' if maintenance_update_packages
+            else 'Disabled' }}
+          - >
+            Security updates: {{ 'Applied'
+            if maintenance_apply_security_updates or
+            apply_security_upgrades | default(false) else 'Skipped' }}
+          - >
+            Docker cleanup: {{ 'Performed'
+            if maintenance_docker_cleanup and docker_check.rc == 0
+            else 'Skipped' }}
+          - >
+            Log cleanup: {{ 'Performed' if maintenance_log_cleanup
+            else 'Skipped' }}
+          - >
+            Service restarts: {{ 'Performed'
+            if maintenance_restart_services or
+            restart_services | default(false) else 'Skipped' }}
+          - "Timestamp: {{ ansible_date_time.iso8601 }}"
+      tags: ['maintenance']

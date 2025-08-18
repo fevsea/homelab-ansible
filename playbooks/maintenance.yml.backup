@@ -1,0 +1,28 @@
+---
+- name: Periodic maintenance tasks
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Maintenance | Ensure package cache up to date (Debian/Ubuntu)
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+      when: ansible_os_family == 'Debian'
+
+    - name: Maintenance | Apply upgrades (optional, disabled by default)
+      apt:
+        upgrade: safe
+      when: ansible_os_family == 'Debian' and (apply_security_upgrades | default(false))
+
+    - name: Maintenance | Clean package cache (optional)
+      apt:
+        autoclean: yes
+      when: ansible_os_family == 'Debian' and (apt_autoclean | default(false))
+
+    - name: Maintenance | Print disk usage summary
+      command: df -h
+      register: disk_usage
+      changed_when: false
+
+    - debug:
+        var: disk_usage.stdout_lines

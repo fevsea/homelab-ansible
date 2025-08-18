@@ -1,0 +1,32 @@
+---
+# Simple test to verify maintenance playbook works with different tags
+- name: Test maintenance playbook with health checks only
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  become: false
+  
+  tasks:
+    - name: Test | Verify maintenance playbook syntax
+      ansible.builtin.command: ansible-playbook --syntax-check playbooks/maintenance.yml
+      args:
+        chdir: "{{ playbook_dir }}/.."
+      changed_when: false
+
+    - name: Test | Check that maintenance playbook can run health checks
+      ansible.builtin.command: ansible-playbook playbooks/maintenance.yml --check --tags health,monitoring -i localhost, -c local
+      args:
+        chdir: "{{ playbook_dir }}/.."
+      changed_when: false
+      register: health_check_test
+
+    - name: Test | Verify health check test passed
+      ansible.builtin.assert:
+        that:
+          - health_check_test.rc == 0
+        fail_msg: "Health check test failed"
+        success_msg: "Health check test passed"
+
+    - name: Test | Show test completion
+      ansible.builtin.debug:
+        msg: "Maintenance playbook test completed successfully"
